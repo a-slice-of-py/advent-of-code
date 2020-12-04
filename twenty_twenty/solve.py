@@ -1,6 +1,7 @@
 import fire
 import itertools
 import functools
+import re
 from collections import Counter
 from rich import print
 
@@ -128,6 +129,33 @@ class AdventOfCode:
                 )                
             )
 
+    def fields_validation(self) -> dict:
+        return {
+            'byr': lambda x: len(x) == 4 and int(x) >= 1920 and int(x) <= 2002 if x.isdigit() else False,
+            'iyr': lambda x: len(x) == 4 and int(x) >= 2010 and int(x) <= 2020 if x.isdigit() else False,
+            'eyr': lambda x: len(x) == 4 and int(x) >= 2020 and int(x) <= 2030 if x.isdigit() else False,
+            'hgt': (
+                lambda x: int(x.replace('cm','')) >= 150 and int(x.replace('cm','')) <= 193 
+                if 'cm' == x[-2:] and x.replace('cm','').isdigit()
+                else int(x.replace('in','')) >= 59 and int(x.replace('in','')) <= 76 
+                if 'in' == x[-2:] and x.replace('in','').isdigit() 
+                else False
+                ), 
+            'hcl': lambda x: len(x) == 7 and x[0] == '#' and all(y in list('abcdef0123456789') for y in list(x[1:])), 
+            'ecl': lambda x: x in ['amb', 'blu', 'brn', 'gry', 'grn', 'hzl', 'oth'], 
+            'pid': lambda x: len(x) == 9 and x.isdigit(),
+            'cid': lambda x: True
+        }
+        
+    def validate_passport_data(self, passport: dict) -> bool:
+        return all(self.fields_validation()[field](passport[field]) for field in passport)
+
+    def count_passports_with_valid_data(self, puzzle_input: list) -> int:
+        return sum(
+            self.validate_passport_data(passport)
+            for passport in puzzle_input
+        )
+
 def load_puzzle_input(day: str) -> str:
     with open(f'./puzzle_input/{day}.txt', 'r') as f:
         puzzle_input = f.read()
@@ -195,9 +223,9 @@ def solve(day: str):
 
     if day == '04':
         n = aoc.count_valid_passports(puzzle_input)
+        m = aoc.count_passports_with_valid_data(aoc.get_valid_passports(puzzle_input))
         print(f"There are {n} passports which contain required fields.")
-        valid_passports = aoc.get_valid_passports(puzzle_input)
-        print(valid_passports[0])
+        print(f"There are {m} passports which contain required fields with valid data.")
 
 def main(day: str):
     print(f"\n*** Advent of Code 2020 ***")
