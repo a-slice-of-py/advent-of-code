@@ -25,7 +25,7 @@ class AdventOfCode:
         possible_sum = dict(((x, y), x + y) for x, y in itertools.product(candidate_entries, candidate_entries) if x != y)
         for pair, sum_ in possible_sum.items():
             if sum_ in complements.values():
-                return *pair, value - sum_
+                return (*pair, value - sum_)
 
     # day 02
 
@@ -156,6 +156,52 @@ class AdventOfCode:
             for passport in puzzle_input
         )
 
+    # day 05
+
+    def decode_seat(self, chunk, keys):
+        lb, ub = 0, 2 ** len(chunk) - 1
+        for char in chunk:
+            middle = int((ub - lb + 1) / 2)
+            if char == keys[0]:
+                lb, ub = lb, lb + middle - 1
+            elif char == keys[1]:
+                lb, ub = lb + middle, ub
+        if lb == ub:
+            return lb        
+
+    def compute_seat_id(self, boarding_pass):
+        row = self.decode_seat(boarding_pass[:7], ['F', 'B'])
+        column = self.decode_seat(boarding_pass[7:], ['L', 'R'])
+        return row * 8 + column
+
+    def compute_highest_seat_id(self, puzzle_input):
+        return max(self.compute_seat_id(boarding_pass) for boarding_pass in puzzle_input)
+
+    def find_seat(self, puzzle_input):
+        seats = list(self.compute_seat_id(bp) for bp in puzzle_input)
+        return set(range(min(seats), max(seats) + 1)) - set(seats)
+
+    # day 06
+
+    def get_group_questions(self, group, rule):
+        if rule == 'anyone':
+            return len(functools.reduce(
+                lambda x, y: set(x) | set(y),
+                group
+            ))
+        elif rule == 'everyone':
+            return len(functools.reduce(
+                lambda x, y: set(x) & set(y),
+                group
+            ))
+
+    def compute_questions_count(self, puzzle_input, rule='anyone'):
+        return sum(
+            self.get_group_questions(group, rule=rule)
+            for group in puzzle_input
+        )
+
+
 def load_puzzle_input(day: str) -> str:
     with open(f'./puzzle_input/{day}.txt', 'r') as f:
         puzzle_input = f.read()
@@ -163,8 +209,11 @@ def load_puzzle_input(day: str) -> str:
 
 def preprocess(puzzle_input: str, day: str) -> list:
 
+    def _standard_preprocess(puzzle_input):
+        return filter(lambda x: x != '', puzzle_input.split('\n'))
+
     if day == '01':
-        puzzle_input = filter(lambda x: x != '', puzzle_input.split('\n'))
+        puzzle_input = _standard_preprocess(puzzle_input)
         return list(
             map(
                 lambda x: int(x),
@@ -172,7 +221,7 @@ def preprocess(puzzle_input: str, day: str) -> list:
                 )
             )
     if day == '02':
-        puzzle_input = filter(lambda x: x != '', puzzle_input.split('\n'))
+        puzzle_input = _standard_preprocess(puzzle_input)
         return list(
             map(
                 lambda x: (
@@ -188,14 +237,26 @@ def preprocess(puzzle_input: str, day: str) -> list:
             )
         )
     if day == '03':
-        puzzle_input = filter(lambda x: x != '', puzzle_input.split('\n'))
-        return list(puzzle_input)
+        return list(_standard_preprocess(puzzle_input))
     if day == '04':
         puzzle_input = map(lambda x: x.split('\n'), puzzle_input.split('\n\n'))
         puzzle_input = map(lambda x: list(y.split(' ') for y in x), puzzle_input)
         puzzle_input = map(lambda z: functools.reduce(lambda x, y: x + y, z), puzzle_input)
         puzzle_input = map(lambda x: dict(tuple(y.split(':')) for y in x if y != ''), puzzle_input)
         return list(puzzle_input)
+    if day == '05':
+        return list(_standard_preprocess(puzzle_input))
+    if day == '06':
+        puzzle_input = puzzle_input.split('\n')
+        groups = []
+        group = []
+        for person in puzzle_input:
+            if person != '':
+                group.append(person)
+            else:
+                groups.append(group)
+                group = []                
+        return groups
 
 def solve(day: str):
 
@@ -208,24 +269,31 @@ def solve(day: str):
         p, q, r = aoc.find_three_entries_that_sum_to(2020, puzzle_input)
         print(f"The two entries are {n} and {m} and their product is {n * m}.")
         print(f"The three entries are {p}, {q} and {r} and their product is {p * q * r}.")
-
     if day == '02':
         n = aoc.count_valid_password(puzzle_input)
         m = aoc.count_valid_password(puzzle_input, new_interpretation=True)
         print(f"There are {n} valid passwords.")
         print(f"With the new interpretation, there are {m} valid passwords.")
-
     if day == '03':
         n = aoc.count_trees_encountered(puzzle_input)
         m = aoc.evaluate_toboggan_slopes(puzzle_input, [(1,1),(1,3),(1,5),(1,7),(2,1)])
         print(f"The trees encountered would be {n}.")
         print(f"The product of all encounters is {m}.")
-
     if day == '04':
         n = aoc.count_valid_passports(puzzle_input)
         m = aoc.count_passports_with_valid_data(aoc.get_valid_passports(puzzle_input))
         print(f"There are {n} passports which contain required fields.")
         print(f"There are {m} passports which contain required fields with valid data.")
+    if day == '05':
+        n = aoc.compute_highest_seat_id(puzzle_input)
+        m = aoc.find_seat(puzzle_input).pop()
+        print(f"The highest seat_id is {n}.")
+        print(f"The seat id is {m}.")
+    if day == '06':
+        n = aoc.compute_questions_count(puzzle_input)
+        m = aoc.compute_questions_count(puzzle_input, rule='everyone')
+        print(f"The sum of questions to which anyone answered yes is {n}.")
+        print(f"The sum of questions to which everyone answered yes is {m}.")
 
 def main(day: str):
     print(f"\n*** Advent of Code 2020 ***")
@@ -238,6 +306,7 @@ def main(day: str):
                 pass
     else:
         solve(day)
+    print('\n')
 
 if __name__ == '__main__':
     fire.Fire(main)
