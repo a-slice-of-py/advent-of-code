@@ -2,13 +2,20 @@ import fire
 import itertools
 import functools
 import re
+import time
 from collections import Counter
 from rich import print
 
 class AdventOfCode:
 
     def __init__(self):
-        pass
+        self._init_day('08')
+
+    def _init_day(self, day: str):
+        if day == '08':
+            self.accumulator = 0
+            self.memory = []
+            self.terminated = False
     
     # day 01
 
@@ -158,7 +165,7 @@ class AdventOfCode:
 
     # day 05
 
-    def decode_seat(self, chunk, keys):
+    def decode_seat(self, chunk: str, keys: list) -> int:
         lb, ub = 0, 2 ** len(chunk) - 1
         for char in chunk:
             middle = int((ub - lb + 1) / 2)
@@ -169,21 +176,21 @@ class AdventOfCode:
         if lb == ub:
             return lb        
 
-    def compute_seat_id(self, boarding_pass):
+    def compute_seat_id(self, boarding_pass: str) -> int:
         row = self.decode_seat(boarding_pass[:7], ['F', 'B'])
         column = self.decode_seat(boarding_pass[7:], ['L', 'R'])
         return row * 8 + column
 
-    def compute_highest_seat_id(self, puzzle_input):
+    def compute_highest_seat_id(self, puzzle_input: list) -> int:
         return max(self.compute_seat_id(boarding_pass) for boarding_pass in puzzle_input)
 
-    def find_seat(self, puzzle_input):
+    def find_seat(self, puzzle_input: list) -> set:
         seats = list(self.compute_seat_id(bp) for bp in puzzle_input)
         return set(range(min(seats), max(seats) + 1)) - set(seats)
 
     # day 06
 
-    def get_group_questions(self, group, rule):
+    def get_group_questions(self, group: list, rule: str) -> int:
         if rule == 'anyone':
             return len(functools.reduce(
                 lambda x, y: set(x) | set(y),
@@ -195,19 +202,111 @@ class AdventOfCode:
                 group
             ))
 
-    def compute_questions_count(self, puzzle_input, rule='anyone'):
+    def compute_questions_count(self, puzzle_input: list, rule: str = 'anyone') -> int:
         return sum(
             self.get_group_questions(group, rule=rule)
             for group in puzzle_input
         )
 
+    # day 07
+
+    def get_outer_bag_colors(self, puzzle_input: int, color: str) -> list:
+        return list(
+         rule[0] for rule in puzzle_input
+         if color in rule
+        )
+
+    def get_all_bag_colors(self, puzzle_input: int, color: str = 'shinygold') -> set:
+        colors_to_test = set(self.get_outer_bag_colors(puzzle_input, color=color))
+        tested_colors = set()
+        while colors_to_test:
+            current_color = colors_to_test.pop()
+            if current_color not in tested_colors:
+                tested_colors = tested_colors | set([current_color])
+                colors_to_test = colors_to_test | set(self.get_outer_bag_colors(puzzle_input, color=current_color))            
+        return tested_colors - set([color])
+
+    def unfold_bag(self, puzzle_input: list, color: str) -> list:
+        layer = list(
+            rule for rule in puzzle_input
+            if rule[0] == color
+        ).pop()[1:]
+        return list(
+            f"{''.join(list(c for c in bag if c.isalpha()))}:{''.join(list(c for c in bag if c.isdigit()))}"            
+            for bag in layer
+            if bag != 'noother'
+            )
+
+    def count_bags(self, puzzle_input: list, color: str = 'shinygold') -> int:
+        layers = self.unfold_bag(puzzle_input, color=color)
+        colors_to_unfold = set(layers)
+        unfolded_colors = set()
+        get_color = lambda x: x.split('/')[-1].split(':')[0]
+        while colors_to_unfold:
+            bag = colors_to_unfold.pop()
+            unfolded_colors = unfolded_colors | set([bag])
+            colors_to_unfold = colors_to_unfold | set([f"{bag}/{inner_color}" for inner_color in self.unfold_bag(puzzle_input, get_color(bag))])
+        return sum(
+            map(
+                lambda x: functools.reduce(lambda z, t: z*t, list(int(y.split(':')[1]) for y in x.split('/'))),
+                sorted(unfolded_colors)
+            )
+        )
+
+    # day 08
+
+    def run_instruction(self, puzzle_input: list, instruction: tuple, index: int) -> tuple:
+        self.memory.append(index)
+        operation, argument = instruction
+        if operation == 'acc':
+            self.accumulator += argument
+            return puzzle_input[index + 1], index + 1
+        elif operation == 'jmp':
+            return puzzle_input[index + argument], index + argument
+        elif operation == 'nop':
+            return puzzle_input[index + 1], index + 1
+
+    def run_boot_code(self, puzzle_input: list, verbose: bool = False) -> int:
+        instruction, index = puzzle_input[0], 0
+        while index not in self.memory:
+            if verbose:
+                print(f'Accumulator {self.accumulator}')
+                print(f'Memory {self.memory}')
+                print(f'Next instruction {instruction}, with index {index}\n')
+            if index < len(puzzle_input) - 1:
+                instruction, index = self.run_instruction(puzzle_input, instruction, index)
+            elif index == len(puzzle_input) - 1:
+                print(f'Program terminated, the value of the accumulator is {self.accumulator}.')
+                self.terminated = True
+                break
+
+    def switch_instruction(self, puzzle_input) -> int:
+        input_dict = dict((k, v) for k, v in enumerate(puzzle_input))
+        instruction_dict = dict(
+            jmp=list(k for k, v in input_dict.items() if v[0]=='jmp'),
+            nop=list(k for k, v in input_dict.items() if v[0]=='nop')
+        )
+        instruction_dict = dict(
+            (index, operation)
+            for operation in instruction_dict
+            for index in instruction_dict.get(operation)
+            )
+        switch = lambda x: 'nop' if x == 'jmp' else 'jmp'
+
+        for index, operation in instruction_dict.items():
+            self._init_day('08')
+            new_input = input_dict.copy()
+            new_input[index] = (switch(operation), new_input[index][1])
+            self.run_boot_code(list(new_input.values()))
+            if self.terminated:
+                break
 
 def load_puzzle_input(day: str) -> str:
-    with open(f'./puzzle_input/{day}.txt', 'r') as f:
+    with open(f'./input/{day}.txt', 'r') as f:
         puzzle_input = f.read()
     return puzzle_input
 
-def preprocess(puzzle_input: str, day: str) -> list:
+def preprocess(puzzle_input: str, day: str, part: str = 'one') -> list:
 
     def _standard_preprocess(puzzle_input):
         return filter(lambda x: x != '', puzzle_input.split('\n'))
@@ -257,11 +356,39 @@ def preprocess(puzzle_input: str, day: str) -> list:
                 groups.append(group)
                 group = []                
         return groups
+    if day == '07':
+        puzzle_input = list(
+            map(
+                lambda x: x.replace('bags', 'bag').replace('.', '').replace(' contain ', ', ').split(' bag,'),
+                _standard_preprocess(puzzle_input)
+                )
+            )
+        if part == 'one':
+            return list(
+                map(
+                    lambda x: list(''.join(list(z for z in y.replace(' bag','').strip() if z.isalpha())) for y in x),
+                    puzzle_input
+                )
+            )
+        elif part == 'two':
+            return list(
+                map(
+                    lambda x: list(''.join(list(z for z in y.replace(' bag','').strip() if z.isalpha() or z.isdigit())) for y in x),
+                    puzzle_input
+                )
+            )
+    if day == '08':
+        return list(
+            map(
+                lambda x: (x.split(' ')[0], int(x.split(' ')[1])),
+                _standard_preprocess(puzzle_input)
+            )
+        )
 
 def solve(day: str):
 
     puzzle_input = preprocess(load_puzzle_input(day), day)
-    print(f"\n- Day {int(day)} -")
+    print(f"\n- Day {str(int(day)).zfill(2)} -")
     aoc = AdventOfCode()
 
     if day in '01':
@@ -294,6 +421,16 @@ def solve(day: str):
         m = aoc.compute_questions_count(puzzle_input, rule='everyone')
         print(f"The sum of questions to which anyone answered yes is {n}.")
         print(f"The sum of questions to which everyone answered yes is {m}.")
+    if day == '07':
+        n = len(aoc.get_all_bag_colors(puzzle_input))
+        print(f"The number of bag colors that can eventually contain at least one shiny gold bag is {n}.")
+        puzzle_input = preprocess(load_puzzle_input(day), day, part='two')          
+        m = aoc.count_bags(puzzle_input, color='shinygold')
+        print(f"The individual bags required inside the single shiny gold bag are {m}.")
+    if day == '08':
+        aoc.run_boot_code(puzzle_input)
+        print(f"The value in the accumulator immediately before the boot code tries to execute an instruction for the second time is {aoc.accumulator}.")
+        aoc.switch_instruction(puzzle_input)
 
 def main(day: str):
     print(f"\n*** Advent of Code 2020 ***")
