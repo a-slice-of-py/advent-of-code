@@ -1,4 +1,5 @@
-import fire
+from typing import List
+import fire # type: ignore
 import itertools
 import functools
 import re
@@ -14,7 +15,7 @@ class AdventOfCode:
     def _init_day(self, day: str):
         if day == '08':
             self.accumulator = 0
-            self.memory = []
+            self.memory: List = []
             self.terminated = False
     
     # day 01
@@ -301,6 +302,36 @@ class AdventOfCode:
             if self.terminated:
                 break
 
+    # day 09
+
+    def validate_number_vs_chunk(self, number: int, chunk: list) -> bool:
+        possible_sums = list(
+            x + y
+            for x in chunk
+            for y in chunk
+            if x != y
+        )
+        return number in possible_sums
+
+    def attack_xmas(self, puzzle_input: list, windows_size: int = 25) -> int:
+        preamble = puzzle_input[:windows_size]
+        for index in range(windows_size, len(puzzle_input) + 1):
+            chunk = puzzle_input[index - windows_size:index]
+            if not self.validate_number_vs_chunk(puzzle_input[index], chunk):
+                return puzzle_input[index]
+
+    def compute_encryption_weakness(self, puzzle_input: list, window_size: int = 25) -> int:
+        invalid_number = self.attack_xmas(puzzle_input, windows_size=window_size)
+        for i in range(len(puzzle_input)):
+            contiguous_set = puzzle_input[i:i+1]
+            for j in range(i + 2, len(puzzle_input)): 
+                if sum(contiguous_set) < invalid_number:
+                    contiguous_set = puzzle_input[i:j]
+                elif sum(contiguous_set) > invalid_number:
+                    break
+                else:
+                    return min(contiguous_set) + max(contiguous_set)
+
 def load_puzzle_input(day: str) -> str:
     with open(f'./input/{day}.txt', 'r') as f:
         puzzle_input = f.read()
@@ -384,6 +415,13 @@ def preprocess(puzzle_input: str, day: str, part: str = 'one') -> list:
                 _standard_preprocess(puzzle_input)
             )
         )
+    if day == '09':
+        return list(
+            map(
+                lambda x: int(x),
+                _standard_preprocess(puzzle_input)
+                )
+            )
 
 def solve(day: str):
 
@@ -431,6 +469,11 @@ def solve(day: str):
         aoc.run_boot_code(puzzle_input)
         print(f"The value in the accumulator immediately before the boot code tries to execute an instruction for the second time is {aoc.accumulator}.")
         aoc.switch_instruction(puzzle_input)
+    if day == '09':
+        n = aoc.attack_xmas(puzzle_input)
+        m = aoc.compute_encryption_weakness(puzzle_input)
+        print(f"The first number that does not abide to XMAS rule is {n}.")
+        print(f"The XMAS encryption weakness is {m}.")
 
 def main(day: str):
     print(f"\n*** Advent of Code 2020 ***")
