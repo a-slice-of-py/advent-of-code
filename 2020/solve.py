@@ -332,6 +332,55 @@ class AdventOfCode:
                 else:
                     return min(contiguous_set) + max(contiguous_set)
 
+    # day 10
+
+    def compute_adapter_chain(self, puzzle_input: list) -> int:
+        puzzle_input = [0] + puzzle_input + [max(puzzle_input) + 3]
+        return functools.reduce(
+            lambda x, y: x*y,
+            Counter(
+                list(
+                    y - x
+                    for x, y in zip(puzzle_input, puzzle_input[1:])
+                    )
+                )
+            .values()
+        )
+
+    def compute_all_chains(self, puzzle_input: list, verbose: bool = False):
+        
+        puzzle_input = [0] + puzzle_input + [max(puzzle_input) + 3]
+        target_rating = sum(puzzle_input)/len(puzzle_input[1:-1])
+        
+        descending = dict(
+            (rating, set([rating - k for k in range(1, 4) if rating - k >= 0 and rating - k in puzzle_input]))
+            for rating in puzzle_input
+        )
+        ascending = dict(
+            (adapter, set([other_adapter for other_adapter, connection in descending.items() if adapter in connection]))
+            for adapter in descending
+        )
+
+        chains = set()
+        output = set()
+        chains = chains | set([start for start in itertools.product(
+            len(ascending.get(min(ascending)))*[min(ascending)], ascending.get(min(ascending))
+            )])
+
+        while chains:
+            if verbose:
+                print(f"Average rating: {round(100*(sum(sum(x) for x in chains)/sum(len(x) for x in chains))/target_rating, 4)}", end='\r')
+            chain = chains.pop()
+
+            if chain[-1] == max(puzzle_input):
+                output = output | set([chain])
+
+            for connection in ascending.get(chain[-1]):
+                chains = chains | set([tuple(list(chain) + [connection])])
+        if verbose:
+            print('\n')
+        return len(output)
+
 def load_puzzle_input(day: str) -> str:
     with open(f'./input/{day}.txt', 'r') as f:
         puzzle_input = f.read()
@@ -422,6 +471,13 @@ def preprocess(puzzle_input: str, day: str, part: str = 'one') -> list:
                 _standard_preprocess(puzzle_input)
                 )
             )
+    if day == '10':
+        return sorted(
+            map(
+                lambda x: int(x),
+                _standard_preprocess(puzzle_input)
+            )
+        )
 
 def solve(day: str):
 
@@ -429,7 +485,7 @@ def solve(day: str):
     print(f"\n- Day {str(int(day)).zfill(2)} -")
     aoc = AdventOfCode()
 
-    if day in '01':
+    if day == '01':
         n, m = aoc.find_two_entries_that_sum_to(2020, puzzle_input)
         p, q, r = aoc.find_three_entries_that_sum_to(2020, puzzle_input)
         print(f"The two entries are {n} and {m} and their product is {n * m}.")
@@ -474,7 +530,12 @@ def solve(day: str):
         m = aoc.compute_encryption_weakness(puzzle_input)
         print(f"The first number that does not abide to XMAS rule is {n}.")
         print(f"The XMAS encryption weakness is {m}.")
-
+    if day == '10':
+        n = aoc.compute_adapter_chain(puzzle_input)
+        m = aoc.compute_all_chains(puzzle_input[:21], verbose=True)
+        print(f"The product between number of 1-jolt differences and 3-jolt differences is {n}.")
+        print(f"The total number of distinct ways in which the adapters can be arranged is {m}.")
+        
 def main(day: str):
     print(f"\n*** Advent of Code 2020 ***")
     if day == 'all':
@@ -485,7 +546,7 @@ def main(day: str):
             except:
                 pass
     else:
-        solve(day)
+        solve(str(day))
     print('\n')
 
 if __name__ == '__main__':
