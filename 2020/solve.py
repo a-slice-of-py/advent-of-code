@@ -404,29 +404,62 @@ class AdventOfCode:
 
     # day 11
     
-    def get_neighbour_states(self, row_number: int, seat_number: int) -> list:
-        directions = dict(
-            north=(-1, 0),
-            north_east=(-1, 1),
-            east=(0, 1),
-            south_east=(1, 1),
-            south=(1, 0),
-            south_west=(1, -1),
-            west=(0, -1),            
-            north_west=(-1, -1)           
-            )
-        states = []
-        for voffset, hoffset in directions.values():
-            if (row_number + voffset >= 0) and (seat_number + hoffset >= 0):
-                try:
-                    states.append(
-                        self.seating_area[row_number + voffset][seat_number + hoffset]
-                        )
-                except:
-                    pass
-        return states
+    def get_neighbour_states(self, row_number: int, seat_number: int, deep_fov: bool) -> list:
+        if deep_fov:
+            if row_number == 0 and seat_number == 0:
+                domain = list(range(1, len(self.seating_area[0])))
+                image = list(range(1, len(self.seating_area)))
+            elif row_number == len(self.seating_area)-1 and seat_number == len(self.seating_area[0])-1:
+                domain = list(range(0, len(self.seating_area[0])-1))
+                image = list(range(0, len(self.seating_area)-1))
+            elif row_number == 0 and seat_number == len(self.seating_area[0])-1:
+                domain = list(range(0, len(self.seating_area[0])-1))
+                image = list(range(1, len(self.seating_area)))
+            elif row_number == len(self.seating_area)-1 and seat_number == 0:
+                domain = list(range(1, len(self.seating_area[0])))
+                image = list(range(0, len(self.seating_area)-1))
+            else:
+                domain = list(range(0, seat_number)) + list(range(seat_number+1, len(self.seating_area[0])))
+                image = list(range(0, row_number)) + list(range(row_number+1, len(self.seating_area)))
 
-    def compute_new_seat_state(self, row_number: int, seat_number: int, tolerance: int) -> str:
+            directions = {
+                'y=x': lambda x: (x, x),
+                # 'y=-x': lambda x: (-x, x),
+                'y=0': lambda x: (x, row_number),
+                'x=0': lambda x: (seat_number, x),
+            }
+            
+            for direction, f in directions.items():
+                print(direction)
+                points = [(x, y) for (x, y) in list(map(f, domain)) if y in image]
+                for x, y in points:
+                    row = list(self.seating_area[y])
+                    row[x] = 'X'
+                    self.seating_area[y] = ''.join(row)            
+                print(self.seating_area)
+        else:
+            directions = dict(
+                north=(-1, 0),
+                north_east=(-1, 1),
+                east=(0, 1),
+                south_east=(1, 1),
+                south=(1, 0),
+                south_west=(1, -1),
+                west=(0, -1),            
+                north_west=(-1, -1)           
+                )
+            states = []
+            for voffset, hoffset in directions.values():
+                if (row_number + voffset >= 0) and (seat_number + hoffset >= 0):
+                    try:
+                        states.append(
+                            self.seating_area[row_number + voffset][seat_number + hoffset]
+                            )
+                    except:
+                        pass
+            return states
+
+    def compute_new_seat_state(self, row_number: int, seat_number: int, tolerance: int, deep_fov: bool) -> str:
 
         row = list(self.seating_area[row_number])
         old_state = row[seat_number]
@@ -434,19 +467,19 @@ class AdventOfCode:
         if old_state == '.':
             new_state = '.'
         elif old_state == 'L':
-            if '#' not in self.get_neighbour_states(row_number, seat_number):
+            if '#' not in self.get_neighbour_states(row_number, seat_number, deep_fov=deep_fov):
                 new_state = '#'
             else:
                 new_state = old_state
         elif old_state == '#':
-            if Counter(self.get_neighbour_states(row_number, seat_number)).get('#', 0) >= tolerance:
+            if Counter(self.get_neighbour_states(row_number, seat_number, deep_fov=deep_fov)).get('#', 0) >= tolerance:
                 new_state = 'L'
             else:
                 new_state = old_state
 
         return new_state
 
-    def _update_seating_area(self, tolerance: int):
+    def _update_seating_area(self, tolerance: int, deep_fov: bool):
         
         rows = range(len(self.seating_area))
         seats = range(len(self.seating_area[0]))
@@ -455,11 +488,11 @@ class AdventOfCode:
         for row_number in rows:
             new_row = []
             for seat_number in seats:
-                new_state = self.compute_new_seat_state(row_number, seat_number, tolerance=tolerance)
+                new_state = self.compute_new_seat_state(row_number, seat_number, tolerance=tolerance, deep_fov=deep_fov)
                 new_row.append(new_state)
             self.new_seating_area.append(''.join(new_row))
 
-    def update_seating_area(self, tolerance: int = 4, verbose: bool = False):  
+    def update_seating_area(self, tolerance: int = 4, deep_fov: bool = False, verbose: bool = False):  
 
         for _ in itertools.count():
             if verbose:
@@ -467,7 +500,7 @@ class AdventOfCode:
                 print("Old", self.seating_area)
                 print("Occupied seats", self.count_occupied_seats())
 
-            self._update_seating_area(tolerance=tolerance)             
+            self._update_seating_area(tolerance=tolerance, deep_fov=deep_fov)             
             if verbose:
                 print("New", self.new_seating_area, '')
 
@@ -641,9 +674,15 @@ def solve(day: str):
         print(f"The product between number of 1-jolt differences and 3-jolt differences is {n}.")
         print(f"The total number of distinct ways in which the adapters can be arranged is {m}.")
     if day == '11':
-        aoc.update_seating_area(tolerance=4)
-        n = aoc.count_occupied_seats()
-        print(f"The number of occupied seats at the end is {n}.")
+        # aoc.update_seating_area()
+        # n = aoc.count_occupied_seats()
+        # print(f"The number of occupied seats at the end is {n}.")
+        # aoc._init_day('11', puzzle_input)
+        # aoc.update_seating_area(tolerance=5, deep_fov=False)
+        # m = aoc.count_occupied_seats()
+        # print(f"The number of occupied seats with new tolerance and depth of FOV is {m}.")
+        print(aoc.seating_area)
+        print(aoc.get_neighbour_states(4, 4, True))
         
 def main(day: str):
     print(f"\n*** Advent of Code 2020 ***")
