@@ -4,19 +4,25 @@ import itertools
 import functools
 import re
 import time
+import copy
 from collections import Counter
 from rich import print
 
 class AdventOfCode:
 
-    def __init__(self):
+    def __init__(self, puzzle_input: list = None):
         self._init_day('08')
+        self._init_day('11', puzzle_input)
 
-    def _init_day(self, day: str):
+    def _init_day(self, day: str, puzzle_input: list = None):
+
         if day == '08':
             self.accumulator = 0
             self.memory: List = []
             self.terminated = False
+
+        if day == '11':
+            self.seating_area = puzzle_input.copy()
     
     # day 01
 
@@ -314,7 +320,6 @@ class AdventOfCode:
         return number in possible_sums
 
     def attack_xmas(self, puzzle_input: list, windows_size: int = 25) -> int:
-        preamble = puzzle_input[:windows_size]
         for index in range(windows_size, len(puzzle_input) + 1):
             chunk = puzzle_input[index - windows_size:index]
             if not self.validate_number_vs_chunk(puzzle_input[index], chunk):
@@ -347,10 +352,9 @@ class AdventOfCode:
             .values()
         )
 
-    def compute_all_chains(self, puzzle_input: list, verbose: bool = False):
+    def compute_all_chains(self, puzzle_input: list, method: str = 'smart', verbose: bool = False) -> int:
         
         puzzle_input = [0] + puzzle_input + [max(puzzle_input) + 3]
-        target_rating = sum(puzzle_input)/len(puzzle_input[1:-1])
         
         descending = dict(
             (rating, set([rating - k for k in range(1, 4) if rating - k >= 0 and rating - k in puzzle_input]))
@@ -361,25 +365,157 @@ class AdventOfCode:
             for adapter in descending
         )
 
-        chains = set()
-        output = set()
-        chains = chains | set([start for start in itertools.product(
-            len(ascending.get(min(ascending)))*[min(ascending)], ascending.get(min(ascending))
-            )])
+        if method == 'bruteforce':
 
-        while chains:
+            target_rating = sum(puzzle_input)/len(puzzle_input[1:-1])
+
+            output = set()
+            chains = set()
+            chains = chains | set([start for start in itertools.product(
+                len(ascending.get(min(ascending)))*[min(ascending)], ascending.get(min(ascending))
+                )])
+
+            while chains:
+                if verbose:
+                    print(f"Average rating: {round(100*(sum(sum(x) for x in chains)/sum(len(x) for x in chains))/target_rating, 4)}", end='\r')
+                chain = chains.pop()
+
+                if chain[-1] == max(puzzle_input):
+                    output = output | set([chain])
+
+                for connection in ascending.get(chain[-1]):
+                    chains = chains | set([tuple(list(chain) + [connection])])
+            
             if verbose:
-                print(f"Average rating: {round(100*(sum(sum(x) for x in chains)/sum(len(x) for x in chains))/target_rating, 4)}", end='\r')
-            chain = chains.pop()
+                print('\n')
 
-            if chain[-1] == max(puzzle_input):
-                output = output | set([chain])
+            return len(output)
 
-            for connection in ascending.get(chain[-1]):
-                chains = chains | set([tuple(list(chain) + [connection])])
-        if verbose:
-            print('\n')
-        return len(output)
+        elif method == 'smart':
+
+            n_paths = dict((k, len(v)) for k, v in ascending.items())
+            combos = dict((k, tuple([n_paths.get(vi) for vi in v])) for k, v in ascending.items())
+            output = {max(combos): 1}
+
+            for adapter in sorted(ascending)[::-1][1:]:
+                output[adapter] = sum(output.get(connection) for connection in ascending[adapter])
+
+            return output[0]
+
+    # day 11
+    
+    def get_neighbour_states(self, row_number: int, seat_number: int, deep_fov: bool) -> list:
+        if deep_fov:
+            if row_number == 0 and seat_number == 0:
+                domain = list(range(1, len(self.seating_area[0])))
+                image = list(range(1, len(self.seating_area)))
+            elif row_number == len(self.seating_area)-1 and seat_number == len(self.seating_area[0])-1:
+                domain = list(range(0, len(self.seating_area[0])-1))
+                image = list(range(0, len(self.seating_area)-1))
+            elif row_number == 0 and seat_number == len(self.seating_area[0])-1:
+                domain = list(range(0, len(self.seating_area[0])-1))
+                image = list(range(1, len(self.seating_area)))
+            elif row_number == len(self.seating_area)-1 and seat_number == 0:
+                domain = list(range(1, len(self.seating_area[0])))
+                image = list(range(0, len(self.seating_area)-1))
+            else:
+                domain = list(range(0, seat_number)) + list(range(seat_number+1, len(self.seating_area[0])))
+                image = list(range(0, row_number)) + list(range(row_number+1, len(self.seating_area)))
+
+            directions = {
+                'y=x': lambda x: (x, x),
+                # 'y=-x': lambda x: (-x, x),
+                'y=0': lambda x: (x, row_number),
+                'x=0': lambda x: (seat_number, x),
+            }
+            
+            for direction, f in directions.items():
+                print(direction)
+                points = [(x, y) for (x, y) in list(map(f, domain)) if y in image]
+                for x, y in points:
+                    row = list(self.seating_area[y])
+                    row[x] = 'X'
+                    self.seating_area[y] = ''.join(row)            
+                print(self.seating_area)
+        else:
+            directions = dict(
+                north=(-1, 0),
+                north_east=(-1, 1),
+                east=(0, 1),
+                south_east=(1, 1),
+                south=(1, 0),
+                south_west=(1, -1),
+                west=(0, -1),            
+                north_west=(-1, -1)           
+                )
+            states = []
+            for voffset, hoffset in directions.values():
+                if (row_number + voffset >= 0) and (seat_number + hoffset >= 0):
+                    try:
+                        states.append(
+                            self.seating_area[row_number + voffset][seat_number + hoffset]
+                            )
+                    except:
+                        pass
+            return states
+
+    def compute_new_seat_state(self, row_number: int, seat_number: int, tolerance: int, deep_fov: bool) -> str:
+
+        row = list(self.seating_area[row_number])
+        old_state = row[seat_number]
+
+        if old_state == '.':
+            new_state = '.'
+        elif old_state == 'L':
+            if '#' not in self.get_neighbour_states(row_number, seat_number, deep_fov=deep_fov):
+                new_state = '#'
+            else:
+                new_state = old_state
+        elif old_state == '#':
+            if Counter(self.get_neighbour_states(row_number, seat_number, deep_fov=deep_fov)).get('#', 0) >= tolerance:
+                new_state = 'L'
+            else:
+                new_state = old_state
+
+        return new_state
+
+    def _update_seating_area(self, tolerance: int, deep_fov: bool):
+        
+        rows = range(len(self.seating_area))
+        seats = range(len(self.seating_area[0]))
+        self.new_seating_area = []
+
+        for row_number in rows:
+            new_row = []
+            for seat_number in seats:
+                new_state = self.compute_new_seat_state(row_number, seat_number, tolerance=tolerance, deep_fov=deep_fov)
+                new_row.append(new_state)
+            self.new_seating_area.append(''.join(new_row))
+
+    def update_seating_area(self, tolerance: int = 4, deep_fov: bool = False, verbose: bool = False):  
+
+        for _ in itertools.count():
+            if verbose:
+                print("Iteration", _)
+                print("Old", self.seating_area)
+                print("Occupied seats", self.count_occupied_seats())
+
+            self._update_seating_area(tolerance=tolerance, deep_fov=deep_fov)             
+            if verbose:
+                print("New", self.new_seating_area, '')
+
+            if self.new_seating_area == self.seating_area:
+                break
+            else:
+                self.seating_area = self.new_seating_area
+
+    def count_occupied_seats(self) -> int:
+        return sum(
+            map(
+                lambda x: Counter(x).get('#') if Counter(x).get('#') is not None else 0,
+                self.seating_area
+            )
+        )
 
 def load_puzzle_input(day: str) -> str:
     with open(f'./input/{day}.txt', 'r') as f:
@@ -478,12 +614,14 @@ def preprocess(puzzle_input: str, day: str, part: str = 'one') -> list:
                 _standard_preprocess(puzzle_input)
             )
         )
+    if day == '11':
+        return list(_standard_preprocess(puzzle_input))
 
 def solve(day: str):
 
     puzzle_input = preprocess(load_puzzle_input(day), day)
     print(f"\n- Day {str(int(day)).zfill(2)} -")
-    aoc = AdventOfCode()
+    aoc = AdventOfCode(puzzle_input=puzzle_input)
 
     if day == '01':
         n, m = aoc.find_two_entries_that_sum_to(2020, puzzle_input)
@@ -532,9 +670,19 @@ def solve(day: str):
         print(f"The XMAS encryption weakness is {m}.")
     if day == '10':
         n = aoc.compute_adapter_chain(puzzle_input)
-        m = aoc.compute_all_chains(puzzle_input[:21], verbose=True)
+        m = aoc.compute_all_chains(puzzle_input)
         print(f"The product between number of 1-jolt differences and 3-jolt differences is {n}.")
         print(f"The total number of distinct ways in which the adapters can be arranged is {m}.")
+    if day == '11':
+        # aoc.update_seating_area()
+        # n = aoc.count_occupied_seats()
+        # print(f"The number of occupied seats at the end is {n}.")
+        # aoc._init_day('11', puzzle_input)
+        # aoc.update_seating_area(tolerance=5, deep_fov=False)
+        # m = aoc.count_occupied_seats()
+        # print(f"The number of occupied seats with new tolerance and depth of FOV is {m}.")
+        print(aoc.seating_area)
+        print(aoc.get_neighbour_states(4, 4, True))
         
 def main(day: str):
     print(f"\n*** Advent of Code 2020 ***")
