@@ -7,7 +7,7 @@ days = {
 
 def load_input(day: int) -> list:
     try:
-        with open(f"./inputs/{str(day).zfill(2)}.txt", "r") as f:
+        with open(f"./2023/inputs/{str(day).zfill(2)}.txt", "r") as f:
             return f.read().split("\n")
     except FileNotFoundError:
         pass
